@@ -54,7 +54,7 @@ fileQueue.process(async (job, done) => {
   // Define thumbnail sizes and generate thumbnails concurrently
   const sizes = [500, 250, 100]; // Array of sizes for the thumbnails
   try {
-    await Promise.all(sizes.map((size) => generateThumbnail(file.localPath, size))); // Generate all thumbnails
+    await Promise.all(sizes.map((size) => generateThumbnail(file.localPath, size)));
     done(); // Mark job as completed
   } catch (error) {
     console.error(`Error generating thumbnails: ${error.message}`); // Log the error message

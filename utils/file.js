@@ -15,7 +15,9 @@ const fileUtils = {
    * @returns {Object} - An object containing an error message (if any) and file parameters
    */
   async validateBody(request) {
-    const { name, type, isPublic = false, data } = request.body; // Destructure required fields from request body
+    const {
+      name, type, isPublic = false, data,
+    } = request.body; // Destructure required fields from request body
     let { parentId = 0 } = request.body; // Default parentId to 0 if not provided
 
     if (parentId === '0') parentId = 0; // Convert string '0' to number 0
@@ -30,7 +32,7 @@ const fileUtils = {
     } else if (!data && type !== 'folder') {
       msg = 'Missing data'; // Check if data is provided for non-folder types
     } else if (parentId && parentId !== '0') {
-      const file = basicUtils.isValidId(parentId) ? await this.getFile({ _id: ObjectId(parentId) }) : null; // Get the parent file if the ID is valid
+      const file = basicUtils.isValidId(parentId) ? await this.getFile({ _id: ObjectId(parentId) }) : null;
 
       if (!file) {
         msg = 'Parent not found'; // Check if parent file exists
@@ -42,10 +44,12 @@ const fileUtils = {
     // Return the validation result
     return {
       error: msg,
-      fileParams: { name, type, parentId, isPublic, data },
+      fileParams: {
+        name, type, parentId, isPublic, data,
+      },
     };
   },
-  
+
   // Other file utility methods (e.g., create, read, update, delete) should be defined here...
 };
 

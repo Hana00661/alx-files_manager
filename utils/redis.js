@@ -60,4 +60,3 @@ class RedisClient {
 const redisClient = new RedisClient();
 
 export default redisClient; // Export the Redis client instance
-

@@ -2,7 +2,7 @@ import express from 'express'; // Importing the express framework
 import controllerRouting from './routes/index'; // Importing routing configurations from the routes module
 
 const app = express(); // Creating an Express application instance
-const port = process.env.PORT || 5000; // Setting the port to the value from environment variables or defaulting to 5000
+const port = process.env.PORT || 5000; // Setting the port to the value
 
 app.use(express.json()); // Middleware to parse incoming JSON requests
 

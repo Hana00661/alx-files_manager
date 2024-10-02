@@ -2,7 +2,7 @@ import { MongoClient } from 'mongodb';
 
 // Set up the database connection parameters, using environment variables or defaults
 const DB_HOST = process.env.DB_HOST || 'localhost'; // Database host (default: localhost)
-const DB_PORT = process.env.DB_PORT || 27017;      // Database port (default: 27017)
+const DB_PORT = process.env.DB_PORT || 27017; // Database port (default: 27017)
 const DB_DATABASE = process.env.DB_DATABASE || 'files_manager'; // Database name (default: 'files_manager')
 const url = `mongodb://${DB_HOST}:${DB_PORT}`; // MongoDB connection URL
 
@@ -40,7 +40,7 @@ class DBClient {
    * @return {Promise<number>} - A promise resolving to the number of users
    */
   async nbUsers() {
-    const numberOfUsers = await this.usersCollection.countDocuments(); // Await the count of documents
+    const numberOfUsers = await this.usersCollection.countDocuments();
     return numberOfUsers; // Return the number of users
   }
 
@@ -49,7 +49,7 @@ class DBClient {
    * @return {Promise<number>} - A promise resolving to the number of files
    */
   async nbFiles() {
-    const numberOfFiles = await this.filesCollection.countDocuments(); // Await the count of documents
+    const numberOfFiles = await this.filesCollection.countDocuments();
     return numberOfFiles; // Return the number of files
   }
 }
