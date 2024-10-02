@@ -203,6 +203,7 @@ class DBClient {
       .updateOne({ _id: ObjectId(fileId) }, { $set: { isPublic: false } });
     return status;
   }
+}
 
 const dbClient = new DBClient();
 module.exports = dbClient;

@@ -26,10 +26,10 @@ class RedisClient {
     const redisGet = promisify(this.client.get).bind(this.client);
     const value = await redisGet(key);
     return value;
-  } 
+  }
 
 // set key value pair to redis server
-	
+
     async set(key, value, time) {
     const redisSet = promisify(this.client.set).bind(this.client);
     await redisSet(key, value);
@@ -37,7 +37,7 @@ class RedisClient {
   }
 
 // del key vale pair from redis server
-  
+
     async del(key) {
     const redisDel = promisify(this.client.del).bind(this.client);
     await redisDel(key);
