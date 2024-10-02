@@ -6,7 +6,7 @@ import {
   import { ObjectId } from 'mongodb';
   import app from '../server';
   import dbClient from '../utils/db';
-  import redisClient from '../utils/redis';
+  import redisClient from '../utils/rediss';
   
   // Set up Chai to use the HTTP plugin for making requests
   use(chaiHttp);

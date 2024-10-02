@@ -6,7 +6,7 @@ import {
   import { ObjectId } from 'mongodb'; // Importing ObjectId to work with MongoDB ObjectIds
   import app from '../server'; // Importing the application instance
   import dbClient from '../utils/db'; // Importing database client utilities
-  import redisClient from '../utils/redis'; // Importing Redis client utilities
+  import redisClient from '../utils/rediss'; // Importing Redis client utilities
   
   use(chaiHttp); // Activating chai-http
   should(); // Enabling should-style assertions

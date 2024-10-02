@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import mime from 'mime-types';
 import Queue from 'bull';
-import userUtils from '../utils/user';
+import userUtils from '../utils/users';
 import fileUtils from '../utils/file';
 import basicUtils from '../utils/basic';
 

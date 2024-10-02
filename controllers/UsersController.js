@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import userUtils from '../utils/user';
+import userUtils from '../utils/users';
 import redisClient from '../utils/redis'; // Importing Redis client
 
 class UsersController {
