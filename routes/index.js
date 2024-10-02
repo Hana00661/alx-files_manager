@@ -5,73 +5,69 @@ import AuthController from '../controllers/AuthController';
 import FilesController from '../controllers/FilesController';
 
 function controllerRouting(app) {
-  const router = express.Router(); // Create a new router
-  app.use('/', router); // Use the router for all incoming requests
+  const router = express.Router();
+  app.use('/', router);
 
   // App Controller
-
-  // Route to check if Redis and the database are alive
+  // Endpoint to check the status of Redis and the database
   router.get('/status', (req, res) => {
     AppController.getStatus(req, res);
   });
 
-  // Route to retrieve the number of users and files in the database
+  // Endpoint to retrieve the number of users and files in the database
   router.get('/stats', (req, res) => {
     AppController.getStats(req, res);
   });
 
   // User Controller
-
-  // Route to create a new user in the database
+  // Endpoint to create a new user in the database
   router.post('/users', (req, res) => {
     UsersController.postNew(req, res);
   });
 
-  // Route to retrieve the current user based on the authentication token
+  // Endpoint to retrieve the authenticated user's information based on the token used
   router.get('/users/me', (req, res) => {
     UsersController.getMe(req, res);
   });
 
   // Auth Controller
-
-  // Route to sign-in the user and generate a new authentication token
+  // Endpoint to sign in the user by generating a new authentication token
   router.get('/connect', (req, res) => {
     AuthController.getConnect(req, res);
   });
 
-  // Route to sign-out the user based on the provided token
+  // Endpoint to sign out the user based on the token
   router.get('/disconnect', (req, res) => {
     AuthController.getDisconnect(req, res);
   });
 
   // Files Controller
-
-  // Route to upload a new file, storing it in the database and on disk
+  // Endpoint to create a new file in the database and save it on disk
   router.post('/files', (req, res) => {
     FilesController.postUpload(req, res);
   });
 
-  // Route to retrieve a specific file document by its ID
+  // Endpoint to retrieve a file document based on the provided ID
   router.get('/files/:id', (req, res) => {
     FilesController.getShow(req, res);
   });
 
-  // Route to retrieve all files for a specific parentId with pagination
+  // Endpoint to retrieve all user file documents for a specific parentId with pagination
   router.get('/files', (req, res) => {
     FilesController.getIndex(req, res);
   });
 
-  // Route to publish a file, setting its isPublic status to true
+  // Endpoint to publish a file by setting isPublic to true based on the ID
   router.put('/files/:id/publish', (req, res) => {
     FilesController.putPublish(req, res);
   });
 
-  // Route to unpublish a file, setting its isPublic status to false
+  // Endpoint to unpublish a file by setting isPublic to false based on the ID
   router.put('/files/:id/unpublish', (req, res) => {
     FilesController.putUnpublish(req, res);
   });
 
-  // Route to return the content of a file document based on its ID
+  // Endpoint to return the content of the file document based on the ID
   router.get('/files/:id/data', (req, res) => {
     FilesController.getFile(req, res);
   });

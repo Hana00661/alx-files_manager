@@ -1,23 +1,25 @@
 import { ObjectId } from 'mongodb';
 
 /**
- * Module with basic utilities
+ * Module with basic utilities for MongoDB operations.
  */
 const basicUtils = {
   /**
-   * Checks if an ID is valid for MongoDB.
+   * Checks if the provided ID is valid for MongoDB.
    * @param {string|number} id - The ID to be evaluated.
-   * @returns {boolean} true if valid, false if not.
+   * @return {boolean} - Returns true if the ID is valid, false if it is not.
    */
   isValidId(id) {
     try {
-      ObjectId(id); // Attempt to convert the ID to an ObjectId
+      // Attempt to create a new ObjectId instance from the given ID.
+      ObjectId(id);
     } catch (err) {
-      return false; // If an error occurs, the ID is not valid
+      // If an error is thrown, the ID is not valid.
+      return false;
     }
-    return true; // If no error, the ID is valid
+    // If no error was thrown, the ID is valid.
+    return true;
   },
 };
 
-// Export the basicUtils module
 export default basicUtils;

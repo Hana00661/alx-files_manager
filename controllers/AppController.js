@@ -1,47 +1,42 @@
-// Importing the dbClient and redisClient utilities
-import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
+import dbClient from '../utils/db';
 
 class AppController {
   /**
-   * getStatus - A static method to get the current status of Redis and the database.
-   * It checks if Redis and the database are alive and sends a response with their status.
-   * 
-   * @param {Object} request - The incoming HTTP request object (not used in this method).
-   * @param {Object} response - The HTTP response object to send back the status.
+   * Returns the status of Redis and the database.
+   * This method checks if both Redis and the database are alive 
+   * by using the corresponding utility functions.
+   * Responds with a JSON object containing the status of each service:
+   * { "redis": true, "db": true }
+   * with a status code of 200.
    */
   static getStatus(request, response) {
-    // Check if Redis is alive (connected and working)
-    const redisstatus = redisClient.isAlive();
-    // Check if the database is alive (connected and working)
-    const dbstatus = dbClient.isAlive();
-    
-    // Send a response with the Redis and database statuses
-    response.status(200).send({ redis: redisstatus, db: dbstatus });
+    // Create a status object by checking if Redis and DB are alive
+    const status = {
+      redis: redisClient.isAlive(),  // Check Redis status
+      db: dbClient.isAlive(),         // Check DB status
+    };
+    // Send the status object as a response with a 200 status code
+    response.status(200).send(status);
   }
 
   /**
-   * getStats - A static method to get statistics on the number of users and files.
-   * It fetches the total number of users and files from the database asynchronously and sends the data as a response.
-   * 
-   * @param {Object} request - The incoming HTTP request object (not used in this method).
-   * @param {Object} response - The HTTP response object to send back the statistics.
+   * Retrieves the number of users and files in the database.
+   * This method calls the corresponding utility functions to get
+   * the count of users and files.
+   * Responds with a JSON object containing the counts:
+   * { "users": 12, "files": 1231 }
+   * with a status code of 200.
    */
   static async getStats(request, response) {
-    try {
-      // Asynchronously get the number of user documents from the database
-      const userdocumentsnum = await dbClient.nbUsers();
-      // Asynchronously get the number of file documents from the database
-      const filesdocumentsnum = await dbClient.nbFiles();
-      
-      // Send a response with the total number of users and files
-      response.status(200).send({ users: userdocumentsnum, files: filesdocumentsnum });
-    } catch (error) {
-      // Handle potential errors by sending a 500 status and error message
-      response.status(500).send({ error: 'An error occurred while fetching statistics' });
-    }
+    // Create a stats object with the number of users and files
+    const stats = {
+      users: await dbClient.nbUsers(),  // Get the number of users
+      files: await dbClient.nbFiles(),   // Get the number of files
+    };
+    // Send the stats object as a response with a 200 status code
+    response.status(200).send(stats);
   }
 }
 
-// Exporting the AppController class to make it available for other modules
-module.exports = AppController;
+export default AppController;

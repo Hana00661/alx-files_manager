@@ -1,56 +1,47 @@
-import sha1 from 'sha1';
-import Queue from 'bull/lib/queue';
-import { ObjectID } from 'mongodb';
-import dbClient from '../utils/db';
-import redisClient from '../utils/redis';
-
-
-const userQueue = new Queue('email sending');
-
+import { ObjectId } from 'mongodb';
+import userUtils from '../utils/user';
+import redisClient from '../utils/redis'; // Importing Redis client
 
 class UsersController {
-  static async postNew(request, response) {
-    const { email, password } = request.body;
-    if (!email) {
-      response.status(400).json({ error: 'Missing email' });
-      return;
-    }
-    if (!password) {
-      response.status(400).json({ error: 'Missing password' });
-      return;
-    }
-    const usersCollection = dbClient.db.collection('users');
-    const existingEmail = await usersCollection.findOne({ email });
-    if (existingEmail) {
-      response.status(400).json({ error: 'Already exist' });
-      return;
-    }
+  // ... existing code ...
 
-    const shaHashedPw = sha1(password);
-    const inserted = await usersCollection.insertOne({ email, password: shaHashedPw });
-    const userId = inserted.insertedId;
-    userQueue.add({ userId })
-    response.status(201).json({ id: userId, email });
-  }
-
+  /**
+   * Should retrieve the user based on the token used.
+   * If not found, return an error Unauthorized with a status code 401.
+   * Otherwise, return the user object (email and id only).
+   */
   static async getMe(request, response) {
-    const token = request.header('X-Token');
-    const key = `auth_${token}`;
-    const userId = await redisClient.get(key);
-    // convert id from string to the ObjectID format it usually is in mongodb
-    const userObjId = new ObjectID(userId);
-    if (userId) {
-      const users = dbClient.db.collection('users');
-      const existingUser = await users.findOne({ _id: userObjId });
-      if (existingUser) {
-        response.status(200).json({ id: userId, email: existingUser.email });
-      } else {
-        response.status(401).json({ error: 'Unauthorized' });
-      }
-    } else {
-      response.status(401).json({ error: 'Unauthorized' });
+    const token = request.headers['x-token'];
+
+    // Check if the token is provided
+    if (!token) {
+      return response.status(401).send({ error: 'Unauthorized' });
     }
+
+    const redisKey = `auth_${token}`;
+
+    // Retrieve the user ID from Redis based on the token
+    const userId = await redisClient.get(redisKey);
+    if (!userId) {
+      return response.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // Fetch the user object based on the userId
+    const user = await userUtils.getUser({
+      _id: ObjectId(userId),
+    });
+
+    // Return error if user not found
+    if (!user) return response.status(401).send({ error: 'Unauthorized' });
+
+    // Construct the processed user object, excluding sensitive information
+    const processedUser = { id: user._id, ...user };
+    delete processedUser._id; // Remove MongoDB ID
+    delete processedUser.password; // Remove password from response
+
+    // Return the processed user object with a status code 200
+    return response.status(200).send(processedUser);
   }
 }
 
-module.exports = UsersController;
+export default UsersController; // Exporting the UsersController class

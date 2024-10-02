@@ -5,61 +5,64 @@ import userUtils from '../utils/user';
 import fileUtils from '../utils/file';
 import basicUtils from '../utils/basic';
 
-// Default folder path to store files, can be overridden by environment variable
 const FOLDER_PATH = process.env.FOLDER_PATH || '/tmp/files_manager';
 
-// Create a queue for file processing tasks
+// Initialize a Bull queue for file processing
 const fileQueue = new Queue('fileQueue');
 
 class FilesController {
   /**
-   * Create a new file or folder in the database and disk
-   * 
-   * - First, it checks if the user is authenticated using a token.
-   * - The file parameters like name, type, and optional parentId are extracted from the request body.
-   * - Based on these parameters, the function handles file/folder creation and stores file content locally.
-   * - If the type is a folder, it adds a folder to the DB; if a file or image, it stores the file and adds its metadata to the DB.
-   * - If an image is being uploaded, it adds the task to a queue for further processing.
+   * Handles the upload of a new file.
+   * Validates the user and file parameters, saves the file locally, and updates the database.
    */
   static async postUpload(request, response) {
-    const { userId } = await userUtils.getUserIdAndKey(request);  // Get user ID from the request token
+    const { userId } = await userUtils.getUserIdAndKey(request);
 
-    // If user ID is invalid, respond with a 401 Unauthorized error
+    // Check if the user is authenticated
     if (!basicUtils.isValidId(userId)) {
       return response.status(401).send({ error: 'Unauthorized' });
     }
 
-    // Add task to the queue for image uploads when no user ID is found
+    // If userId is missing and type is image, add a job to the queue
     if (!userId && request.body.type === 'image') {
       await fileQueue.add({});
     }
 
-    const user = await userUtils.getUser({ _id: ObjectId(userId) });  // Fetch the user by userId
+    // Retrieve user details from the database
+    const user = await userUtils.getUser({
+      _id: ObjectId(userId),
+    });
 
-    // If user does not exist, return 401 Unauthorized
+    // If user is not found, return Unauthorized error
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
 
-    // Validate the file parameters (e.g., name, type, etc.)
+    // Validate the request body for file parameters
     const { error: validationError, fileParams } = await fileUtils.validateBody(request);
 
-    // If validation fails, return 400 Bad Request
-    if (validationError) { return response.status(400).send({ error: validationError }); }
+    // If validation fails, return an error response
+    if (validationError) {
+      return response.status(400).send({ error: validationError });
+    }
 
-    // Check if parentId is valid when it is not set to root (0)
+    // Validate parentId if it is set
     if (fileParams.parentId !== 0 && !basicUtils.isValidId(fileParams.parentId)) {
       return response.status(400).send({ error: 'Parent not found' });
     }
 
-    // Save the file locally and store its metadata in the DB
-    const { error, code, newFile } = await fileUtils.saveFile(userId, fileParams, FOLDER_PATH);
+    // Save the file and get the result
+    const { error, code, newFile } = await fileUtils.saveFile(
+      userId,
+      fileParams,
+      FOLDER_PATH,
+    );
 
-    // If there is an error saving the file, return an appropriate error response
+    // Handle any errors during file saving
     if (error) {
-      if (response.body.type === 'image') await fileQueue.add({ userId });  // Add to queue for images
+      if (response.body.type === 'image') await fileQueue.add({ userId });
       return response.status(code).send(error);
     }
 
-    // For images, add to the fileQueue for additional processing
+    // If the file is an image, add it to the processing queue
     if (fileParams.type === 'image') {
       await fileQueue.add({
         fileId: newFile.id.toString(),
@@ -67,163 +70,186 @@ class FilesController {
       });
     }
 
-    // Return the newly created file object with a 201 Created status
+    // Return the newly created file document with a 201 status
     return response.status(201).send(newFile);
   }
 
   /**
-   * Retrieve a specific file document by its ID
-   * 
-   * - Fetches user details using the token.
-   * - Checks if the file exists and belongs to the authenticated user.
-   * - If found, returns the file metadata; if not, returns appropriate error messages.
+   * Retrieves a specific file document based on the file ID.
+   * Ensures the user is authenticated and authorized to access the file.
    */
   static async getShow(request, response) {
-    const fileId = request.params.id;  // Get file ID from request parameters
-    const { userId } = await userUtils.getUserIdAndKey(request);  // Get user ID from token
+    const fileId = request.params.id;
 
-    const user = await userUtils.getUser({ _id: ObjectId(userId) });  // Fetch the user by userId
+    // Get the user ID from the request token
+    const { userId } = await userUtils.getUserIdAndKey(request);
 
-    // Return 401 Unauthorized if the user is not found
+    // Retrieve user details
+    const user = await userUtils.getUser({
+      _id: ObjectId(userId),
+    });
+
+    // If user is not found, return Unauthorized error
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
 
-    // Validate fileId and userId, return 404 Not Found if invalid
+    // Validate the fileId and userId
     if (!basicUtils.isValidId(fileId) || !basicUtils.isValidId(userId)) {
       return response.status(404).send({ error: 'Not found' });
     }
 
-    // Get the file from the database for the authenticated user
-    const result = await fileUtils.getFile({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+    // Fetch the file document based on the file ID and user ID
+    const result = await fileUtils.getFile({
+      _id: ObjectId(fileId),
+      userId: ObjectId(userId),
+    });
 
-    // If file not found, return 404 Not Found
+    // If no file is found, return Not found error
     if (!result) return response.status(404).send({ error: 'Not found' });
 
-    // Process and return the file metadata
+    // Process the file document before returning it
     const file = fileUtils.processFile(result);
+
+    // Return the file document with a 200 status
     return response.status(200).send(file);
   }
 
   /**
-   * List all files of a user based on a specific parentId with pagination
-   * 
-   * - Retrieves user details using the token.
-   * - Lists all files under a specified parentId and paginates the results.
-   * - Pagination ensures that only 20 files are listed per page.
+   * Retrieves all user file documents for a specific parentId with pagination.
+   * If the parentId is not linked to any user folder, returns an empty list.
    */
   static async getIndex(request, response) {
-    const { userId } = await userUtils.getUserIdAndKey(request);  // Get user ID from token
-    const user = await userUtils.getUser({ _id: ObjectId(userId) });  // Fetch the user by userId
+    const { userId } = await userUtils.getUserIdAndKey(request);
 
-    // Return 401 Unauthorized if the user is not found
+    // Retrieve user details
+    const user = await userUtils.getUser({
+      _id: ObjectId(userId),
+    });
+
+    // If user is not found, return Unauthorized error
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
 
-    // Get parentId from query parameters (defaults to 0 = root)
+    // Determine the parentId from query parameters
     let parentId = request.query.parentId || '0';
     if (parentId === '0') parentId = 0;
 
-    // Get page number from query parameters (defaults to 0)
+    // Determine the page number from query parameters
     let page = Number(request.query.page) || 0;
     if (Number.isNaN(page)) page = 0;
 
-    // Validate parentId if not root, return empty list if invalid or not a folder
+    // Validate the parentId if it is not the root
     if (parentId !== 0 && parentId !== '0') {
-      if (!basicUtils.isValidId(parentId)) { return response.status(401).send({ error: 'Unauthorized' }); }
+      if (!basicUtils.isValidId(parentId)) {
+        return response.status(401).send({ error: 'Unauthorized' });
+      }
 
       parentId = ObjectId(parentId);
-      const folder = await fileUtils.getFile({ _id: ObjectId(parentId) });
-      if (!folder || folder.type !== 'folder') { return response.status(200).send([]); }
+      const folder = await fileUtils.getFile({
+        _id: ObjectId(parentId),
+      });
+
+      // If folder is not found or not a folder, return an empty list
+      if (!folder || folder.type !== 'folder') {
+        return response.status(200).send([]);
+      }
     }
 
-    // Build MongoDB query pipeline for pagination (skip and limit)
+    // Prepare the MongoDB aggregation pipeline for pagination
     const pipeline = [
       { $match: { parentId } },
       { $skip: page * 20 },
       { $limit: 20 },
     ];
 
-    // Execute query to fetch files
+    // Fetch files for the given parentId using the aggregation pipeline
     const fileCursor = await fileUtils.getFilesOfParentId(pipeline);
 
     const fileList = [];
     await fileCursor.forEach((doc) => {
-      const document = fileUtils.processFile(doc);  // Process each file
+      const document = fileUtils.processFile(doc);
       fileList.push(document);
     });
 
-    // Return the list of files for the specified parentId
+    // Return the list of files with a 200 status
     return response.status(200).send(fileList);
   }
 
   /**
-   * Publish a file, making it publicly accessible
-   * 
-   * - Updates the `isPublic` field of the file document to true.
-   * - Requires user authentication and verifies ownership of the file.
+   * Sets the file document's isPublic property to true.
+   * Ensures the user is authenticated and authorized to update the file.
    */
   static async putPublish(request, response) {
-    const { error, code, updatedFile } = await fileUtils.publishUnpublish(request, true);  // Mark file as public
+    const { error, code, updatedFile } = await fileUtils.publishUnpublish(
+      request,
+      true,
+    );
 
-    // Handle errors during publish operation
+    // Handle any errors during the publishing process
     if (error) return response.status(code).send({ error });
 
-    // Return the updated file document
+    // Return the updated file document with a 200 status
     return response.status(code).send(updatedFile);
   }
 
   /**
-   * Unpublish a file, making it private (not publicly accessible)
-   * 
-   * - Updates the `isPublic` field of the file document to false.
-   * - Requires user authentication and verifies ownership of the file.
+   * Sets the file document's isPublic property to false.
+   * Ensures the user is authenticated and authorized to update the file.
    */
   static async putUnpublish(request, response) {
-    const { error, code, updatedFile } = await fileUtils.publishUnpublish(request, false);  // Mark file as private
+    const { error, code, updatedFile } = await fileUtils.publishUnpublish(
+      request,
+      false,
+    );
 
-    // Handle errors during unpublish operation
+    // Handle any errors during the unpublishing process
     if (error) return response.status(code).send({ error });
 
-    // Return the updated file document
+    // Return the updated file document with a 200 status
     return response.status(code).send(updatedFile);
   }
 
   /**
-   * Retrieve and return the content of a file by its ID
-   * 
-   * - Fetches the file document by ID and ensures it belongs to the user or is public.
-   * - If valid, it returns the content with the appropriate MIME type.
-   * - If the file is a folder, it returns a 400 error.
+   * Returns the content of the file document based on the ID.
+   * Checks if the file is accessible based on ownership and public status.
    */
   static async getFile(request, response) {
-    const { userId } = await userUtils.getUserIdAndKey(request);  // Get user ID from token
-    const { id: fileId } = request.params;  // Get file ID from request parameters
-    const size = request.query.size || 0;  // Optional size query parameter
+    const { userId } = await userUtils.getUserIdAndKey(request);
+    const { id: fileId } = request.params;
+    const size = request.query.size || 0;
 
-    // Validate fileId, return 404 Not Found if invalid
-    if (!basicUtils.isValidId(fileId)) { return response.status(404).send({ error: 'Not found' }); }
+    // Validate the fileId
+    if (!basicUtils.isValidId(fileId)) {
+      return response.status(404).send({ error: 'Not found' });
+    }
 
-    // Fetch the file by fileId
+    // Fetch the file document based on the file ID
     const file = await fileUtils.getFile({
       _id: ObjectId(fileId),
-      $or: [
-        { userId: ObjectId(userId) },
-        { isPublic: true },
-      ],
     });
 
-    // Return 404 Not Found if file does not exist
-    if (!file) return response.status(404).send({ error: 'Not found' });
+    // Check if the file is accessible to the user
+    if (!file || !fileUtils.isOwnerAndPublic(file, userId)) {
+      return response.status(404).send({ error: 'Not found' });
+    }
 
-    // Return 400 Bad Request if the file is a folder (folders cannot be downloaded)
-    if (file.type === 'folder') return response.status(400).send({ error: "A folder doesn't have content" });
+    // If the file is a folder, return an error
+    if (file.type === 'folder') {
+      return response.status(400).send({ error: "A folder doesn't have content" });
+    }
 
-    // Get the local path for the file
-    const path = fileUtils.getLocalPath(file, size);
+    // Retrieve the file data based on the requested size
+    const { error, code, data } = await fileUtils.getFileData(file, size);
 
-    // Get the MIME type of the file
-    const mimeType = mime.lookup(file.name);
+    // Handle any errors during file data retrieval
+    if (error) return response.status(code).send({ error });
 
-    // Send the file content as a response with the appropriate MIME type
-    return response.header('Content-Type', mimeType).status(200).sendFile(path);
+    // Get the MIME type for the file
+    const mimeType = mime.contentType(file.name);
+
+    // Set the response content type
+    response.setHeader('Content-Type', mimeType);
+
+    // Return the file data with a 200 status
+    return response.status(200).send(data);
   }
 }
 

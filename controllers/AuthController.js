@@ -1,95 +1,69 @@
-import sha1 from 'sha1';
-import { v4 as uuidv4 } from 'uuid';
-import dbClient from '../utils/db';
-import redisClient from '../utils/redis';
+import { v4 as uuidv4 } from 'uuid'; // Importing uuid for generating random tokens
+import sha1 from 'sha1'; // Importing sha1 for password hashing
+import redisClient from '../utils/redis'; // Importing Redis client
+import dbClient from '../utils/db'; // Importing database client
 
 class AuthController {
   /**
-   * getConnect - Handles user authentication (login).
-   * 
-   * It validates the 'Authorization' header, checks the email and hashed password 
-   * in the database, and if the user is found, it generates a token, stores the user ID
-   * in Redis with a 24-hour expiration, and returns the token.
+   * Signs in the user by generating a new authentication token.
+   * It expects the Authorization header to be in the format:
+   * Basic <Base64-encoded email:password>
    */
   static async getConnect(request, response) {
-    // Extract 'Authorization' header from the request
-    const authHeader = request.header('Authorization');
-    
-    // If the 'Authorization' header is missing, return nothing
-    if (!authHeader) {
-      return;
+    const authHeader = request.headers.authorization;
+
+    // Check if the Authorization header is present
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      return response.status(401).send({ error: 'Unauthorized' });
     }
 
-    // Validate the format of the 'Authorization' header (should be a string)
-    if (typeof (authHeader) !== 'string') {
-      return;
+    // Decode the Base64 string and extract email and password
+    const base64Credentials = authHeader.split(' ')[1];
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+    const [email, password] = credentials.split(':');
+
+    // Find the user by email and check if the password matches
+    const user = await dbClient.usersCollection.findOne({ email });
+    if (!user || user.password !== sha1(password)) {
+      return response.status(401).send({ error: 'Unauthorized' });
     }
 
-    // Ensure the header starts with 'Basic '
-    if (authHeader.slice(0, 6) !== 'Basic ') {
-      return;
-    }
+    // Generate a random token
+    const token = uuidv4();
+    const redisKey = `auth_${token}`;
 
-    // Extract the Base64-encoded part of the 'Authorization' header
-    const authHeaderDetails = authHeader.slice(6);
-    const decodedDetails = Buffer.from(authHeaderDetails, 'base64').toString('utf8');
-    
-    // Split the decoded string to extract email and password
-    const data = decodedDetails.split(':');
-    
-    // If the email or password is missing, return an error
-    if (data.length !== 2) {
-      response.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    // Store the user ID in Redis for 24 hours
+    await redisClient.set(redisKey, user._id.toString(), 'EX', 86400); // 86400 seconds = 24 hours
 
-    // Hash the provided password using SHA1
-    const hashedPassword = sha1(data[1]);
-
-    // Search for the user in the database by email and hashed password
-    const users = dbClient.db.collection('users');
-    const desiredUser = await users.findOne({ email: data[0], password: hashedPassword });
-
-    // If a user is found, generate a UUID token and store it in Redis with a 24-hour expiry
-    if (desiredUser) {
-      const token = uuidv4();  // Generate a unique token
-      const key = `auth_${token}`;  // Create Redis key using the token
-
-      // Store the user ID in Redis for 24 hours (86400 seconds)
-      await redisClient.set(key, desiredUser._id.toString(), 862400);
-
-      // Respond with the generated token
-      response.status(200).json({ token });
-    } else {
-      // If authentication fails, return a 401 Unauthorized response
-      response.status(401).json({ error: 'Unauthorized' });
-    }
+    // Return the generated token
+    return response.status(200).send({ token });
   }
 
   /**
-   * getDisconnect - Handles user logout.
-   * 
-   * It retrieves the token from the 'X-Token' header, verifies if it exists in Redis,
-   * deletes the token, and responds with a 204 No Content status.
+   * Signs out the user by deleting the authentication token.
    */
   static async getDisconnect(request, response) {
-    // Extract the token from the 'X-Token' header
-    const token = request.header('X-Token');
-    const key = `auth_${token}`;  // Create Redis key using the token
-    
-    // Retrieve the user ID associated with the token from Redis
-    const id = await redisClient.get(key);
+    const token = request.headers['x-token'];
 
-    // If the token exists in Redis, delete it and respond with a 204 status
-    if (id) {
-      await redisClient.del(key);  // Delete the token from Redis
-      response.status(204).json({});
-    } else {
-      // If the token is not found, respond with a 401 Unauthorized error
-      response.status(401).json({ error: 'Unauthorized' });
+    // Check if the token is provided
+    if (!token) {
+      return response.status(401).send({ error: 'Unauthorized' });
     }
+
+    const redisKey = `auth_${token}`;
+
+    // Retrieve the user ID based on the token
+    const userId = await redisClient.get(redisKey);
+    if (!userId) {
+      return response.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // Delete the token in Redis
+    await redisClient.del(redisKey);
+
+    // Return a 204 No Content response
+    return response.status(204).send();
   }
 }
 
-// Export the AuthController class for use in other parts of the application
-module.exports = AuthController;
+export default AuthController; // Exporting the AuthController class

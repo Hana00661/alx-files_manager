@@ -6,43 +6,38 @@ import dbClient from './db';
  */
 const userUtils = {
   /**
-   * Gets a user ID and Redis key for the token from the request.
-   * @param {request_object} request - The Express request object.
-   * @returns {object} An object containing userId and Redis key for the token.
+   * Gets the user ID and Redis key from the request
+   * @param {object} request - Express request object
+   * @return {object} - An object containing userId and Redis key for token
    */
   async getUserIdAndKey(request) {
-    // Initialize an object to hold userId and key.
-    const obj = { userId: null, key: null };
+    const obj = { userId: null, key: null }; // Initialize object to hold userId and Redis key
 
-    // Retrieve the token from the request header.
-    const xToken = request.header('X-Token');
+    const xToken = request.header('X-Token'); // Extract X-Token from request headers
 
-    // If no token is provided, return the object with null values.
+    // If X-Token is not provided, return the empty object
     if (!xToken) return obj;
 
-    // Set the Redis key using the token.
+    // Construct the Redis key using the token
     obj.key = `auth_${xToken}`;
 
-    // Retrieve the userId from Redis using the generated key.
+    // Fetch the userId from Redis using the constructed key
     obj.userId = await redisClient.get(obj.key);
 
-    // Return the object containing userId and Redis key.
-    return obj;
+    return obj; // Return the object containing userId and key
   },
 
   /**
-   * Gets a user from the database based on the provided query.
-   * @param {object} query - Query expression for finding the user.
-   * @returns {object} The user document object retrieved from the database.
+   * Gets a user from the database
+   * @param {object} query - Query expression for finding the user
+   * @return {object} - User document object
    */
   async getUser(query) {
-    // Find a user in the database using the provided query.
+    // Retrieve the user document from the usersCollection based on the provided query
     const user = await dbClient.usersCollection.findOne(query);
-    
-    // Return the user document object.
-    return user;
+    return user; // Return the found user document
   },
 };
 
-// Export the userUtils module for use in other parts of the application.
+// Export the userUtils module for use in other parts of the application
 export default userUtils;
